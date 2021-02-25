@@ -6,7 +6,7 @@ from project.analysis import md_data
 from pymatgen import Structure
 from pymatgen.io.vasp import Poscar
 
-__author__ = 'Eric Sivonxay <esivonxay@lbl.gov>'
+__author__ = "Eric Sivonxay <esivonxay@lbl.gov>"
 
 
 @explicit_serialize
@@ -42,7 +42,9 @@ class SaveStructureTask(FireTaskBase):
             if "CONTCAR" in file_name:
                 files.append(file_name)
 
-        _poscar = Poscar.from_file(filename=files[-1], check_for_POTCAR=True, read_velocities=True)
+        _poscar = Poscar.from_file(
+            filename=files[-1], check_for_POTCAR=True, read_velocities=True
+        )
         _structure = _poscar.structure.as_dict()
 
         return FWAction(update_spec={"structure": _structure})
@@ -54,7 +56,7 @@ class PassPVTask(FireTaskBase):
     optional_params = []
 
     def run_task(self, fw_spec):
-        pressure_volume = fw_spec.get('pressure_volume', [])
+        pressure_volume = fw_spec.get("pressure_volume", [])
 
         # get volume
         osw = list(os.walk("."))[0]
@@ -62,15 +64,17 @@ class PassPVTask(FireTaskBase):
         for file_name in osw[2]:
             if "CONTCAR" in file_name:
                 files.append(file_name)
-        _poscar = Poscar.from_file(filename=files[-1], check_for_POTCAR=True, read_velocities=True)
+        _poscar = Poscar.from_file(
+            filename=files[-1], check_for_POTCAR=True, read_velocities=True
+        )
         volume = _poscar.structure.volume
 
         # get pressure
-        search_keys = ['external']
+        search_keys = ["external"]
         outcar_data = md_data.get_MD_data("./OUTCAR.gz", search_keys=search_keys)
 
         _data = np.transpose(outcar_data)[0]
-        pressure = np.mean(_data[int(0.5 * (len(_data) - 1)):])
+        pressure = np.mean(_data[int(0.5 * (len(_data) - 1)) :])
 
         pressure_volume.append((volume, pressure))
-        return FWAction(mod_spec={'_push_all': {'pressure_volume': pressure_volume}})
+        return FWAction(mod_spec={"_push_all": {"pressure_volume": pressure_volume}})

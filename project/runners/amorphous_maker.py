@@ -8,14 +8,22 @@ import numpy as np
 from pymatgen import Structure, MPRester, Composition
 from pymatgen.io.vasp.inputs import Poscar
 
-__author__ = 'Eric Sivonxay, Jianli Cheng, and Muratahan Aykol'
-__maintainer__ = 'Eric Sivonxay'
-__email__ = 'esivonxay@lbl.gov'
+__author__ = "Eric Sivonxay, Jianli Cheng, and Muratahan Aykol"
+__maintainer__ = "Eric Sivonxay"
+__email__ = "esivonxay@lbl.gov"
 
 
 class AmorphousMaker(object):
-    def __init__(self, el_num_dict, box_scale, tol=2.0, packmol_path="packmol",
-                 clean=True, xyz_paths=None, time_seed=False):
+    def __init__(
+        self,
+        el_num_dict,
+        box_scale,
+        tol=2.0,
+        packmol_path="packmol",
+        clean=True,
+        xyz_paths=None,
+        time_seed=False,
+    ):
         """
         Class for generating initial constrained-random packed structures for the
         simulation of amorphous or liquid structures. This is a wrapper for "packmol" package.
@@ -86,12 +94,23 @@ class AmorphousMaker(object):
             pm_h = [pm_h for i in range(3)]
 
         with open("packmol.input", "w") as f:
-            f.write("tolerance " + str(self.tol) + "\nfiletype xyz\noutput mixture.xyz\n")
+            f.write(
+                "tolerance " + str(self.tol) + "\nfiletype xyz\noutput mixture.xyz\n"
+            )
             for el in self.el_num_dict:
-                f.write("structure " + el + ".xyz\n" + "  number " + str(self.el_num_dict[el])
-                        + "\n  inside box" + 3 * (" " + str(pm_l))
-                        + (" " + str(pm_h[0])) + (" " + str(pm_h[1])) + (" " + str(pm_h[2]))
-                        + "\nend structure\n\n")
+                f.write(
+                    "structure "
+                    + el
+                    + ".xyz\n"
+                    + "  number "
+                    + str(self.el_num_dict[el])
+                    + "\n  inside box"
+                    + 3 * (" " + str(pm_l))
+                    + (" " + str(pm_h[0]))
+                    + (" " + str(pm_h[1]))
+                    + (" " + str(pm_h[2]))
+                    + "\nend structure\n\n"
+                )
 
             if self.time_seed:
                 f.write("seed -1\n")
@@ -99,7 +118,7 @@ class AmorphousMaker(object):
             if self.xyz_paths:
                 for path in self.xyz_paths:
                     try:
-                        shutil.copy2(path, './')
+                        shutil.copy2(path, "./")
                     except:
                         pass
             else:
@@ -122,12 +141,12 @@ class AmorphousMaker(object):
         This is a generic xyz to dictionary convertor.
         Used to get the structure from packmol output.
         """
-        with open(filename, 'r') as f:
+        with open(filename, "r") as f:
             lines = f.readlines()
-            N = int(lines[0].rstrip('\n'))
+            N = int(lines[0].rstrip("\n"))
             el_dict = {}
             for line in lines[2:]:
-                l = line.rstrip('\n').split()
+                l = line.rstrip("\n").split()
                 if l[0] in el_dict:
                     el_dict[l[0]].append([float(i) for i in l[1:]])
                 else:
@@ -190,9 +209,15 @@ class AmorphousMaker(object):
                     f.write(" ".join([str(i) for i in atom]) + "\n")
 
 
-def get_random_packed(composition, add_specie=None, target_atoms=100,
-                      vol_per_atom=None, vol_exp=1.0, modify_species=None,
-                      use_random_seed=True):
+def get_random_packed(
+    composition,
+    add_specie=None,
+    target_atoms=100,
+    vol_per_atom=None,
+    vol_exp=1.0,
+    modify_species=None,
+    use_random_seed=True,
+):
     mpr = MPRester()
 
     if type(composition) == str:
@@ -201,25 +226,32 @@ def get_random_packed(composition, add_specie=None, target_atoms=100,
         add_specie = Composition(add_specie)
 
     if vol_per_atom is None:
-        comp_entries = mpr.get_entries(composition.reduced_formula,
-                                       inc_structure=True)
+        comp_entries = mpr.get_entries(composition.reduced_formula, inc_structure=True)
         if len(comp_entries) > 0:
-            vols = np.min([entry.structure.volume / entry.structure.num_sites
-                           for entry in comp_entries])
+            vols = np.min(
+                [
+                    entry.structure.volume / entry.structure.num_sites
+                    for entry in comp_entries
+                ]
+            )
         else:
             # Find all Materials project entries containing the elements in the
             # desired composition to estimate starting volume.
             _entries = mpr.get_entries_in_chemsys(
-                [str(el) for el in composition.elements], inc_structure=True)
+                [str(el) for el in composition.elements], inc_structure=True
+            )
             entries = []
             for entry in _entries:
-                if set(entry.structure.composition.elements) == set(composition.elements):
+                if set(entry.structure.composition.elements) == set(
+                    composition.elements
+                ):
                     entries.append(entry)
                 if len(entry.structure.composition.elements) >= 2:
                     entries.append(entry)
 
-            vols = [entry.structure.volume / entry.structure.num_sites
-                    for entry in entries]
+            vols = [
+                entry.structure.volume / entry.structure.num_sites for entry in entries
+            ]
         vol_per_atom = np.mean(vols)
 
     # Find total composition of atoms in the unit cell
@@ -239,9 +271,13 @@ def get_random_packed(composition, add_specie=None, target_atoms=100,
         for i, v in modify_species.items():
             structure[i] += v
     # use packmol to get a random configured structure
-    packmol_path = os.environ['PACKMOL_PATH']
-    amorphous_maker_params = {'box_scale': (vol_per_atom * comp.num_atoms * vol_exp) ** (1 / 3),
-                              'packmol_path': packmol_path, 'xyz_paths': None, 'time_seed' : use_random_seed}
+    packmol_path = os.environ["PACKMOL_PATH"]
+    amorphous_maker_params = {
+        "box_scale": (vol_per_atom * comp.num_atoms * vol_exp) ** (1 / 3),
+        "packmol_path": packmol_path,
+        "xyz_paths": None,
+        "time_seed": use_random_seed,
+    }
 
     glass = AmorphousMaker(structure, **amorphous_maker_params)
     structure = glass.random_packed_structure

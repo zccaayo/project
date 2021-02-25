@@ -16,7 +16,7 @@ from monty.json import MontyEncoder
 from pymatgen import Structure
 from pymatgen.core.trajectory import Trajectory
 
-__author__ = 'Eric Sivonxay and Jianli Cheng'
+__author__ = "Eric Sivonxay and Jianli Cheng"
 
 logger = get_logger(__name__)
 
@@ -45,9 +45,18 @@ class VaspMDToDb(FiretaskBase):
             is not "successful"; i.e. both electronic and ionic convergence are reached.
             Defaults to True.
     """
-    optional_params = ["calc_dir", "calc_loc", "parse_dos", "bandstructure_mode",
-                       "additional_fields", "db_file", "fw_spec_field",
-                       "md_structures", "defuse_unsuccessful"]
+
+    optional_params = [
+        "calc_dir",
+        "calc_loc",
+        "parse_dos",
+        "bandstructure_mode",
+        "additional_fields",
+        "db_file",
+        "fw_spec_field",
+        "md_structures",
+        "defuse_unsuccessful",
+    ]
 
     def run_task(self, fw_spec):
         # get the directory that contains the VASP dir to parse
@@ -60,9 +69,11 @@ class VaspMDToDb(FiretaskBase):
         # parse the VASP directory
         logger.info("PARSING DIRECTORY: {}".format(calc_dir))
 
-        drone = VaspDrone(additional_fields=self.get("additional_fields"),
-                          parse_dos=self.get("parse_dos", False),
-                          bandstructure_mode=self.get("bandstructure_mode", False))
+        drone = VaspDrone(
+            additional_fields=self.get("additional_fields"),
+            parse_dos=self.get("parse_dos", False),
+            bandstructure_mode=self.get("bandstructure_mode", False),
+        )
 
         # assimilate (i.e., parse)
         task_doc = drone.assimilate(calc_dir)
@@ -72,7 +83,7 @@ class VaspMDToDb(FiretaskBase):
             task_doc.update(fw_spec[self.get("fw_spec_field")])
 
         # get the database connection
-        db_file = env_chk(self.get('db_file'), fw_spec)
+        db_file = env_chk(self.get("db_file"), fw_spec)
 
         # db insertion or taskdoc dump
         if not db_file:
@@ -82,23 +93,31 @@ class VaspMDToDb(FiretaskBase):
             mmdb = VaspMDCalcDb.from_db_file(db_file, admin=True)
 
             # prevent duplicate insertion
-            mmdb.db.tasks.find_one_and_delete({'formula_pretty': task_doc['formula_pretty'],
-                                                        'task_label': task_doc['task_label']})
+            mmdb.db.tasks.find_one_and_delete(
+                {
+                    "formula_pretty": task_doc["formula_pretty"],
+                    "task_label": task_doc["task_label"],
+                }
+            )
 
-            t_id = mmdb.insert_task(task_doc,
-                                    parse_dos=self.get("parse_dos", False),
-                                    parse_bs=bool(self.get("bandstructure_mode", False)),
-                                    md_structures=self.get("md_structures", True))
+            t_id = mmdb.insert_task(
+                task_doc,
+                parse_dos=self.get("parse_dos", False),
+                parse_bs=bool(self.get("bandstructure_mode", False)),
+                md_structures=self.get("md_structures", True),
+            )
 
             logger.info("Finished parsing with task_id: {}".format(t_id))
 
         if self.get("defuse_unsuccessful", True):
-            defuse_children = (task_doc["state"] != "successful")
+            defuse_children = task_doc["state"] != "successful"
         else:
             defuse_children = False
 
-        return FWAction(stored_data={"task_id": task_doc.get("task_id", None)},
-                        defuse_children=defuse_children)
+        return FWAction(
+            stored_data={"task_id": task_doc.get("task_id", None)},
+            defuse_children=defuse_children,
+        )
 
 
 @explicit_serialize
@@ -107,27 +126,33 @@ class TrajectoryDBTask(FiretaskBase):
     Obtain all production runs and insert them into the db. This is done by
     searching for a unique tag
     """
+
     required_params = ["tag_id", "db_file"]
-    optional_params = ['notes']
+    optional_params = ["notes"]
 
     def run_task(self, fw_spec):
-        notes = self.get('notes', None)
-        tag_id = self['tag_id']
+        notes = self.get("notes", None)
+        tag_id = self["tag_id"]
 
         # get the database connection
-        db_file = env_chk(self.get('db_file'), fw_spec)
+        db_file = env_chk(self.get("db_file"), fw_spec)
         mmdb = VaspMDCalcDb.from_db_file(db_file, admin=True)
         mmdb.db.trajectories.find_one_and_delete({"runs_label": tag_id})
-        runs = mmdb.db['tasks'].find(
-            {"task_label": re.compile(f'.*prod_run.*{tag_id}.*')})
+        runs = mmdb.db["tasks"].find(
+            {"task_label": re.compile(f".*prod_run.*{tag_id}.*")}
+        )
 
-        runs_sorted = sorted(runs, key=lambda x: int(re.findall('run[_-](\d+)', x['task_label'])[0]))
+        runs_sorted = sorted(
+            runs, key=lambda x: int(re.findall("run[_-](\d+)", x["task_label"])[0])
+        )
 
         # Remove duplicates of the same run (if they exist)
-        labels = [result['task_label'] for result in runs_sorted]
-        nums = [int(re.findall('run[_-](\d+)', label)[0]) for label in labels]
+        labels = [result["task_label"] for result in runs_sorted]
+        nums = [int(re.findall("run[_-](\d+)", label)[0]) for label in labels]
         duplicates = np.where((nums - np.roll(nums, 1)) == 0)[0]
-        runs_sorted = [runs_sorted[i] for i in range(len(runs_sorted)) if i not in duplicates]
+        runs_sorted = [
+            runs_sorted[i] for i in range(len(runs_sorted)) if i not in duplicates
+        ]
 
         trajectory_doc = runs_to_trajectory_doc(runs_sorted, db_file, tag_id, notes)
 
@@ -152,18 +177,19 @@ def runs_to_trajectory_doc(runs, db_file, runs_label, notes=None):
     gfs_id, compression_type = insert_gridfs(traj_dict, mmdb.db, "trajectories_fs")
 
     traj_doc = {
-        'formula_pretty': trajectory[0].composition.reduced_formula,
-        'formula': trajectory[0].composition.formula.replace(' ', ''),
-        'temperature': int(runs[0]["input"]["incar"]["TEBEG"]),
-        'runs_label': runs_label,
-        'compression': compression_type,
-        'fs_id': gfs_id,
-        'step_fs_ids': [i["calcs_reversed"][0]["output"]['ionic_steps_fs_id']
-                        for i in runs],
-        'structure': trajectory[0].as_dict(),
-        'dimension': list(np.shape(trajectory.frac_coords)),
-        'time_step': runs[0]["input"]["incar"]["POTIM"] * 1e-3,
-        'notes': notes
+        "formula_pretty": trajectory[0].composition.reduced_formula,
+        "formula": trajectory[0].composition.formula.replace(" ", ""),
+        "temperature": int(runs[0]["input"]["incar"]["TEBEG"]),
+        "runs_label": runs_label,
+        "compression": compression_type,
+        "fs_id": gfs_id,
+        "step_fs_ids": [
+            i["calcs_reversed"][0]["output"]["ionic_steps_fs_id"] for i in runs
+        ],
+        "structure": trajectory[0].as_dict(),
+        "dimension": list(np.shape(trajectory.frac_coords)),
+        "time_step": runs[0]["input"]["incar"]["POTIM"] * 1e-3,
+        "notes": notes,
     }
     return traj_doc
 
@@ -175,20 +201,25 @@ def load_trajectories_from_gfs(runs, db_file):
         if "INCAR" in run.keys():
             # for backwards compatibility with older version of mpmorph
             fs_id.append(run["ionic_steps_fs_id"])
-            fs.append('previous_runs_gfs')
+            fs.append("previous_runs_gfs")
         elif "input" in run.keys():
             fs_id.append(run["calcs_reversed"][0]["output"]["ionic_steps_fs_id"])
-            fs.append('structures_fs')
+            fs.append("structures_fs")
 
     for i, v in enumerate(fs_id):
         mmdb = VaspMDCalcDb.from_db_file(db_file, admin=True)
         ionic_steps_dict = load_ionic_steps(v, mmdb.db, fs[i])
 
         if i == 0:
-            trajectory = Trajectory.from_structures([Structure.from_dict(i['structure']) for i in ionic_steps_dict])
+            trajectory = Trajectory.from_structures(
+                [Structure.from_dict(i["structure"]) for i in ionic_steps_dict]
+            )
         else:
             trajectory.extend(
-                Trajectory.from_structures([Structure.from_dict(i['structure']) for i in ionic_steps_dict]))
+                Trajectory.from_structures(
+                    [Structure.from_dict(i["structure"]) for i in ionic_steps_dict]
+                )
+            )
     return trajectory
 
 
@@ -197,10 +228,10 @@ def process_traj(data):
     mmdb = VaspMDCalcDb.from_db_file(db_file, admin=True)
     ionic_steps_dict = load_ionic_steps(fs_id, mmdb.db, fs)
 
-    structure = Structure.from_dict(ionic_steps_dict[0]['structure'])
+    structure = Structure.from_dict(ionic_steps_dict[0]["structure"])
     positions = [0] * len(ionic_steps_dict)
     for i, step in enumerate(ionic_steps_dict):
-        _step = [atom['abc'] for atom in step["structure"]["sites"]]
+        _step = [atom["abc"] for atom in step["structure"]["sites"]]
         positions[i] = _step
 
     traj = Trajectory(structure.lattice.matrix, structure.species, positions, 0.002)
@@ -238,9 +269,10 @@ def insert_gridfs(d, db, collection="fs", compress=True, oid=None, task_id=None)
     if task_id:
         # Putting task id in the metadata subdocument as per mongo specs:
         # https://github.com/mongodb/specifications/blob/master/source/gridfs/gridfs-spec.rst#terms
-        fs_id = fs.put(d, _id=oid, metadata={"task_id": task_id, "compression": compression_type})
+        fs_id = fs.put(
+            d, _id=oid, metadata={"task_id": task_id, "compression": compression_type}
+        )
     else:
         fs_id = fs.put(d, _id=oid, metadata={"compression": compression_type})
 
     return fs_id, compression_type
-

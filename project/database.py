@@ -14,7 +14,7 @@ import numpy as np
 
 logger = get_logger(__name__)
 
-__author__ = 'Eric Sivonxay <esivonxay@lbl.gov>'
+__author__ = "Eric Sivonxay <esivonxay@lbl.gov>"
 
 
 class VaspMDCalcDb(VaspCalcDb):
@@ -23,11 +23,23 @@ class VaspMDCalcDb(VaspCalcDb):
     Class to help manage database insertions of Vasp drones
     """
 
-    def __init__(self, host="localhost", port=27017, database="vasp", collection="tasks", user=None,
-                 password=None, **kwargs):
-        super(VaspMDCalcDb, self).__init__(host, port, database, collection, user, password, **kwargs)
+    def __init__(
+        self,
+        host="localhost",
+        port=27017,
+        database="vasp",
+        collection="tasks",
+        user=None,
+        password=None,
+        **kwargs
+    ):
+        super(VaspMDCalcDb, self).__init__(
+            host, port, database, collection, user, password, **kwargs
+        )
 
-    def insert_task(self, task_doc, parse_dos=False, parse_bs=False, md_structures=False):
+    def insert_task(
+        self, task_doc, parse_dos=False, parse_bs=False, md_structures=False
+    ):
         """
         Inserts a task document (e.g., as returned by Drone.assimilate()) into the database.
         Handles putting DOS and band structure into GridFS as needed.
@@ -51,25 +63,35 @@ class VaspMDCalcDb(VaspCalcDb):
         # insert band structure into GridFS
         if parse_bs and "calcs_reversed" in task_doc:
             if "bandstructure" in task_doc["calcs_reversed"][0]:  # only store idx=0 BS
-                bs = json.dumps(task_doc["calcs_reversed"][0]["bandstructure"], cls=MontyEncoder)
+                bs = json.dumps(
+                    task_doc["calcs_reversed"][0]["bandstructure"], cls=MontyEncoder
+                )
                 gfs_id, compression_type = self.insert_gridfs(bs, "bandstructure_fs")
-                task_doc["calcs_reversed"][0]["bandstructure_compression"] = compression_type
+                task_doc["calcs_reversed"][0][
+                    "bandstructure_compression"
+                ] = compression_type
                 task_doc["calcs_reversed"][0]["bandstructure_fs_id"] = gfs_id
                 del task_doc["calcs_reversed"][0]["bandstructure"]
 
         # insert structures  at each ionic step into GridFS
         if md_structures and "calcs_reversed" in task_doc:
             # insert ionic steps into gridfs
-            #TODO: Depricate this and move to only storing trajectory
-            ionic_steps_json = json.dumps(task_doc["calcs_reversed"][0]['output']['ionic_steps'], cls=MontyEncoder)
-            gfs_id, compression_type = self.insert_gridfs(ionic_steps_json, "structures_fs")
-            task_doc["calcs_reversed"][0]['output']['ionic_steps_compression'] = compression_type
-            task_doc["calcs_reversed"][0]['output']['ionic_steps_fs_id'] = gfs_id
+            # TODO: Depricate this and move to only storing trajectory
+            ionic_steps_json = json.dumps(
+                task_doc["calcs_reversed"][0]["output"]["ionic_steps"], cls=MontyEncoder
+            )
+            gfs_id, compression_type = self.insert_gridfs(
+                ionic_steps_json, "structures_fs"
+            )
+            task_doc["calcs_reversed"][0]["output"][
+                "ionic_steps_compression"
+            ] = compression_type
+            task_doc["calcs_reversed"][0]["output"]["ionic_steps_fs_id"] = gfs_id
 
             # Aggregate a trajectory
             ## Convert from a list of dictionaries to a dictionary of lists
-            ionic_steps_dict = task_doc["calcs_reversed"][0]['output']['ionic_steps']
-            del task_doc["calcs_reversed"][0]['output']['ionic_steps']
+            ionic_steps_dict = task_doc["calcs_reversed"][0]["output"]["ionic_steps"]
+            del task_doc["calcs_reversed"][0]["output"]["ionic_steps"]
             ionic_steps_defaultdict = defaultdict(list)
             for d in ionic_steps_dict:
                 for key, val in d.items():
@@ -77,28 +99,41 @@ class VaspMDCalcDb(VaspCalcDb):
             ionic_steps = dict(ionic_steps_defaultdict.items())
 
             ## extract structures from dictionary
-            structures = [Structure.from_dict(struct) for struct in ionic_steps['structure']]
-            del ionic_steps['structure']
+            structures = [
+                Structure.from_dict(struct) for struct in ionic_steps["structure"]
+            ]
+            del ionic_steps["structure"]
 
             frame_properties = {}
-            for key in ['e_fr_energy', 'e_wo_entrp', 'e_0_energy', 'kinetic', 'lattice kinetic', 'nosepot',
-                        'nosekinetic', 'total']:
+            for key in [
+                "e_fr_energy",
+                "e_wo_entrp",
+                "e_0_energy",
+                "kinetic",
+                "lattice kinetic",
+                "nosepot",
+                "nosekinetic",
+                "total",
+            ]:
                 frame_properties[key] = ionic_steps[key]
 
             # Create trajectory
-            trajectory = Trajectory.from_structures(structures, constant_lattice=True,
-                                                    frame_properties=frame_properties,
-                                                    time_step=task_doc['input']['incar']['POTIM'])
+            trajectory = Trajectory.from_structures(
+                structures,
+                constant_lattice=True,
+                frame_properties=frame_properties,
+                time_step=task_doc["input"]["incar"]["POTIM"],
+            )
             traj_dict = json.dumps(trajectory.as_dict(), cls=MontyEncoder)
             gfs_id, compression_type = self.insert_gridfs(traj_dict, "trajectories_fs")
 
-            task_doc['trajectory'] = {
-                'formula': trajectory[0].composition.formula.replace(' ', ''),
-                'temperature': int(task_doc["input"]["incar"]["TEBEG"]),
-                'compression': compression_type,
-                'fs_id': gfs_id,
-                'dimension': list(np.shape(trajectory.frac_coords)),
-                'time_step': task_doc["input"]["incar"]["POTIM"],
+            task_doc["trajectory"] = {
+                "formula": trajectory[0].composition.formula.replace(" ", ""),
+                "temperature": int(task_doc["input"]["incar"]["TEBEG"]),
+                "compression": compression_type,
+                "fs_id": gfs_id,
+                "dimension": list(np.shape(trajectory.frac_coords)),
+                "time_step": task_doc["input"]["incar"]["POTIM"],
             }
 
         # insert the task document and return task_id
@@ -116,4 +151,3 @@ class VaspMDCalcDb(VaspCalcDb):
     #     ionic_steps_dict = self.get_ionic_steps(task_id)
     #     structures = [Structure.from_dict(step["structure"]) for step in ionic_steps_dict]
     #     return structures
-
