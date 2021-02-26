@@ -1,3 +1,4 @@
+# coding: utf-8
 from __future__ import absolute_import, division, print_function, unicode_literals
 from datetime import datetime
 from pymatgen.analysis.elasticity.strain import Deformation
@@ -12,7 +13,7 @@ from clusterx.visualization import juview
 from clusterx.super_cell import SuperCell
 from random import randint
 
-def wf_clusterx(structure_prim, vasp_input_set_relax=None, vasp_input_set_static=None, vasp_cmd="vasp", db_file=None, user_kpoints_settings=None, nstruc = 60,):
+def wf_clusters(structure_prim, vasp_input_set_relax=None, vasp_input_set_static=None, vasp_cmd="vasp", db_file=None, user_kpoints_settings=None, nstruc = 60,):
     """
     Args:
         structure_prim (Structure): input structure ASE Structure object.
@@ -38,7 +39,7 @@ def wf_clusterx(structure_prim, vasp_input_set_relax=None, vasp_input_set_static
 
     # Collect 60 random structures in a StructuresSet object
     sset = StructuresSet(platt)
-    nstruc = 60
+    nstruc = nstruc
 
     for i in range(nstruc):
         concentration = {0:[randint(0,4*4)],1:[randint(0,4*4)]} # Pick a random concentration of "Na" substitutions and "O" adsorbants
@@ -46,24 +47,55 @@ def wf_clusterx(structure_prim, vasp_input_set_relax=None, vasp_input_set_static
 
     print("\nRandom structures (first 3):")
     sset.write_to_db("sset.json") # Write JSON db file for visualization with ASE's GUI.
-    
+    sset = Firework(JsonToDb(json_filename='sset.json')
+    structures = sset.get_structures()
+    for i in sset.get_structures():
 
+    fws = []
+    vis = MPRelaxSet(ordered_structure, user_incar_settings=user_incar_settings)
+
+  
+    # relax
+    fws.append(OptimizeFW(
+                            ordered_structure,
+                            vasp_input_set=vis,
+                            vasp_cmd=c["VASP_CMD"],
+                            db_file=c["DB_FILE"],
+                            max_force_threshold=0.05,
+                            half_kpts_first_relax=False,
+                            name=name + " optimize",
+                        )
+                    )
+
+    # static
+    fws.append(StaticFW(
+                        ordered_structure,
+                        vasp_cmd=c["VASP_CMD"],
+                        db_file=c["DB_FILE"],
+                        name=name + " static",
+                        prev_calc_loc=True,
+                        parents=fws[-1],
+                        vasptodb_kwargs={'parse_chgcar': True, 'parse_aeccar': True}
+                    )
+                )
+    fw_analysis = Firework()
 
     # get the input set for the optimization and update it if we passed custom settings
-    vis_relax = vasp_input_set or MPRelaxSet(structure, force_gamma=True)
-    if user_kpoints_settings:
-        v = vis_relax.as_dict()
-        v.update({"user_kpoints_settings": user_kpoints_settings})
-        vis_relax = vis_relax.__class__.from_dict(v)
+#    vis_relax = vasp_input_set or MPRelaxSet(structure, force_gamma=True)
+
+ #   if user_kpoints_settings:
+  #      v = vis_relax.as_dict()
+  #      v.update({"user_kpoints_settings": user_kpoints_settings})
+ #       vis_relax = vis_relax.__class__.from_dict(v)
 
     # Structure optimization firework
-    fws = [OptimizeFW(structure=structure, vasp_input_set=vis_relax, vasp_cmd=vasp_cmd,
-                      db_file=db_file, name="{} structure optimization".format(tag))]
+#    fws = [OptimizeFW(structure=structure, vasp_input_set=vis_relax, vasp_cmd=vasp_cmd,
+ #                     db_file=db_file, name="{} structure optimization".format(tag))]
 
-    fws.append(fw_analysis)
+  #  fws.append(fw_analysis)
 
     # finally, create the workflow
-    wf_gibbs = Workflow(fws)
-    wf_gibbs.name = "{}:{}".format(structure.composition.reduced_formula, "gibbs free energy")
+#    wf_gibbs = Workflow(fws)
+#    wf_gibbs.name = "{}:{}".format(structure.composition.reduced_formula, "gibbs free energy")
 
-    return wf_gibbs
+    return wf
