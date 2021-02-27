@@ -125,22 +125,19 @@ class MagneticOrderingsWF:
             "wf_version": __magnetic_ordering_wf_version__,
         }
         self.static = static
+        self.structure = structure
 # transform this structure transformer into a vacancy generator to create deintercallated structures to cluster expand
         #these fields determine the seetings of the enumerator
-            enumerator = unique_structure_substitutions
-           # structure,
+        enumerator = unique_structure_substitutions
+           
+        self.sanitized_structure = structure
+        # structure,
            # default_magmoms=default_magmoms,
            # strategies=strategies,
            # automatic=automatic,
            # truncate_by_symmetry=truncate_by_symmetry,
            # transformation_kwargs=transformation_kwargs,
         
-
-        self.sanitized_structure = enumerator.sanitized_structure
-        self.ordered_structures = enumerator.ordered_structures
-        self.ordered_structure_origins = enumerator.ordered_structure_origins
-        self.input_index = enumerator.input_index
-        self.input_origin = enumerator.input_origin
 
     def get_wf(
         self, scan=False, perform_bader=True, num_orderings_hard_limit=16, c=None
@@ -171,6 +168,11 @@ class MagneticOrderingsWF:
         fws = []
         analysis_parents = []
 
+        ordered_structures = enumerator
+        # trim total number of orderings (useful in high-throughput context)
+        # this is somewhat course, better to reduce num_orderings kwarg and/or
+        # change enumeration strategies
+        #ordered_structures = self.ordered_structures
         ordered_structures = enumerator
         # trim total number of orderings (useful in high-throughput context)
         # this is somewhat course, better to reduce num_orderings kwarg and/or
@@ -230,7 +232,7 @@ class MagneticOrderingsWF:
 
         for idx, ordered_structure in enumerate(ordered_structures):
 
-            analyzer = CollinearMagneticStructureAnalyzer(ordered_structure)
+           # analyzer = CollinearMagneticStructureAnalyzer(ordered_structure)
 
             name = " deintercallate {} -".format(idx)
 
